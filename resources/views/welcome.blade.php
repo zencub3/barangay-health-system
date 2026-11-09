@@ -409,7 +409,7 @@
 
                 </div>
 
-                <!-- Features -->
+                
                 <div class="features">
                     <span>✓ Patient Appointments</span>
                     <span>✓ Community Healthcare</span>

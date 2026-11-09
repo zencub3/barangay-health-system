@@ -208,13 +208,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let loaded = false;
     let requestVersion = 0;
 
-    // FIX: Recognize both short and full time-slot values.
-    // Examples:
-    // Morning
-    // Morning (8:00 AM - 12:00 PM)
-    // Afternoon
-    // Afternoon (1:00 PM - 5:00 PM)
-
     function normalizeSlot(value) {
         const name = String(value || '')
             .trim()

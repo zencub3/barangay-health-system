@@ -9,11 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Public homepage and role-based dashboard
-|--------------------------------------------------------------------------
-*/
+/* Public homepage and role-based dashboard*/
 
 Route::get('/', function () {
     return view('welcome');
@@ -32,11 +28,7 @@ Route::get('/dashboard', function () {
 
 Route::middleware('auth')->group(function () {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Patient dashboard and appointment booking
-    |--------------------------------------------------------------------------
-    */
+    /*Patient dashboard and appointment booking*/
 
     Route::get('/patient/dashboard', function () {
         abort_unless(auth()->user()->role === 'patient', 403);
@@ -85,11 +77,7 @@ Route::middleware('auth')->group(function () {
         return view('patient.appointments.create');
     })->name('appointments.create');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Appointment availability for the calendar
-    |--------------------------------------------------------------------------
-    */
+    /*Appointment availability for the calendar*/
 
     Route::get('/appointments/availability', function (Request $request) {
         abort_unless(auth()->user()->role === 'patient', 403);
@@ -156,11 +144,7 @@ Route::middleware('auth')->group(function () {
         return response()->json(['days' => $days]);
     })->name('appointments.availability');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Barangay Health Worker: dashboard and resident review
-    |--------------------------------------------------------------------------
-    */
+    /*Barangay Health Worker: dashboard and resident review*/
 
     Route::get('/bhw/dashboard', function () {
         abort_unless(auth()->user()->role === 'bhw', 403);
@@ -290,11 +274,7 @@ Route::middleware('auth')->group(function () {
         }
     )->name('bhw.users.verify');
 
-    /*
-    |--------------------------------------------------------------------------
-    | BHW attendance confirmation
-    |--------------------------------------------------------------------------
-    */
+    /*BHW attendance confirmation*/
 
     Route::patch(
         '/bhw/appointments/{appointment}/attendance',
@@ -364,11 +344,7 @@ Route::middleware('auth')->group(function () {
         }
     )->name('bhw.appointments.attendance');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Healthcare Personnel: dashboard and appointment approvals
-    |--------------------------------------------------------------------------
-    */
+    /*Healthcare Personnel: dashboard and appointment approvals*/
 
     Route::get('/staff/dashboard', function () {
         abort_unless(
@@ -458,11 +434,7 @@ Route::middleware('auth')->group(function () {
         }
     )->name('appointments.update-status');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Profile management
-    |--------------------------------------------------------------------------
-    */
+    /*Profile management*/
 
     Route::get('/profile', [
         ProfileController::class, 'edit'
@@ -477,5 +449,5 @@ Route::middleware('auth')->group(function () {
     ])->name('profile.destroy');
 });
 
-// Keep existing Laravel Breeze authentication routes.
+
 require __DIR__.'/auth.php';

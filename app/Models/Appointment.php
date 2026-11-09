@@ -11,7 +11,7 @@ class Appointment extends Model
     'consultation_date',
     'time_slot',
     'symptoms',
-    'other_service', // <--- Make sure this is here!
+    'other_service',
     'status',
     'rejection_reason',
 ];

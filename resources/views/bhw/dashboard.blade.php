@@ -265,7 +265,7 @@
                 </div>
             @endif
 
-            <!-- Patient Verification -->
+            <!-- Patient Verify -->
             <section class="bhw-card">
 
                 <div class="bhw-heading">
@@ -354,7 +354,7 @@
                 @endif
             </section>
 
-            <!-- Appointment Monitoring -->
+            <!-- Appointment Monitor -->
             <section class="bhw-card">
 
                 <div class="bhw-heading">

@@ -22,31 +22,16 @@
         </div>
     @endif
 
-    <!-- Login Form -->
+    <!-- Login here -->
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <!-- Role Selection -->
+        
         <div class="field">
             <label>Login As</label>
 
             <div class="role-grid">
 
-                <!-- Administrator -->
-                <label class="role-card">
-                    <input
-                        type="radio"
-                        name="role"
-                        value="administrator"
-                        {{ old('role') === 'administrator' ? 'checked' : '' }}
-                        required
-                    >
-
-                    <span class="role-content">
-                        <span class="role-icon">⚙</span>
-                        <strong>Administrator</strong>
-                    </span>
-                </label>
 
                 <!-- Barangay Health Worker -->
                 <label class="role-card">
@@ -141,7 +126,7 @@
             @enderror
         </div>
 
-        <!-- Remember / Forgot Password -->
+        <!-- Remember n Forgot Password -->
         <div class="form-options">
 
             <label class="remember">
@@ -175,7 +160,7 @@
         </p>
     @endif
 
-    <!-- Account Verification Modal -->
+    <!-- Account Verify -->
     @if(session('account_notice'))
         <div
             id="accountStatusModal"
