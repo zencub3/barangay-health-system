@@ -7,16 +7,15 @@ use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
     /**
-     * Display the registration view.
+     * Show the registration page.
      */
     public function create(): View
     {
@@ -24,35 +23,54 @@ class RegisteredUserController extends Controller
     }
 
     /**
-     * Handle an incoming registration request.
-     *
-     * @throws ValidationException
+     * Register a new patient.
      */
     public function store(Request $request): RedirectResponse
-{
-    $request->validate([
-        'name' => ['required', 'string', 'max:255'],
-        'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-        'password' => ['required', Rules\Password::defaults()],
-        'barangay' => ['required', 'string'],
-    ]);
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
 
-    // Automatically verify if barangay is Ugac Sur, or set to pending for BHW review
-    $isUgacSur = strtolower(trim($request->barangay)) === 'ugac sur';
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                'unique:' . User::class,
+            ],
 
-    $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-        'role' => 'patient',
-        'barangay' => $request->barangay,
-        'status' => $isUgacSur ? 'approved' : 'pending', 
-    ]);
+            'password' => [
+                'required',
+                'confirmed',
+                Password::defaults(),
+            ],
+        ]);
 
-    event(new Registered($user));
+        // Public registration always creates a patient.
+        // Users cannot choose an elevated role.
+        $user = new User();
 
-    Auth::login($user);
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
+        $user->password = Hash::make($validated['password']);
 
-    return redirect(route('dashboard', absolute: false));
-}
+        $user->role = 'patient';
+        $user->status = 'pending';
+
+        $user->save();
+
+        event(new Registered($user));
+
+        // Do not automatically log in pending users.
+        return redirect()
+            ->route('login')
+            ->with(
+                'account_notice',
+                'Your account has been created successfully! '
+                . 'It is now pending verification by the Barangay '
+                . 'Health Worker. You will be able to log in '
+                . 'after your account is approved.'
+            )
+            ->with('account_notice_type', 'pending');
+    }
 }

@@ -1,218 +1,331 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
-// Public Welcome Route
+/*
+|--------------------------------------------------------------------------
+| Public homepage and role-based dashboard
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/', function () {
     return view('welcome');
 });
 
-// Authentication Routes
-Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
-Route::post('/login', [AuthenticatedSessionController::class, 'store']);
-
-// Smart Dashboard Redirection based on Role
 Route::get('/dashboard', function () {
     $role = strtolower(trim(auth()->user()->role ?? ''));
-    
-    if ($role === 'healthcare_personnel') {
-        return redirect()->route('staff.dashboard');
-    } elseif ($role === 'bhw') {
-        return redirect()->route('bhw.dashboard');
-    } elseif ($role === 'patient') {
-        return redirect()->route('patient.dashboard');
-    }
-    
-    // Fallback if role is missing or invalid
-    auth()->logout();
-    return redirect()->route('login')->withErrors(['email' => 'User account does not have a valid assigned role.']);
-})->middleware(['auth', 'verified'])->name('dashboard');
 
-// Authenticated Group (Patients Only)
-Route::middleware(['auth'])->group(function () {
-    
+    return match ($role) {
+        'patient' => redirect()->route('patient.dashboard'),
+        'bhw' => redirect()->route('bhw.dashboard'),
+        'healthcare_personnel' => redirect()->route('staff.dashboard'),
+        default => abort(403, 'Your account role is not authorized.'),
+    };
+})->middleware('auth')->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    /*
+    |----------------------------------------------------------------------
+    | Patient dashboard and appointment booking
+    |----------------------------------------------------------------------
+    */
+
     Route::get('/patient/dashboard', function () {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        
-        if ($role !== 'patient') {
-            if ($role === 'healthcare_personnel') {
-                return redirect()->route('staff.dashboard');
-            } elseif ($role === 'bhw') {
-                return redirect()->route('bhw.dashboard');
-            }
-            return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
-        }
+        abort_unless(auth()->user()->role === 'patient', 403);
+        abort_unless(
+            strtolower(auth()->user()->status ?? '') === 'approved',
+            403,
+            'Your account is awaiting barangay residency verification.'
+        );
 
-        $userId = auth()->id();
-        $appointments = Appointment::where('user_id', $userId)->latest()->get();
+        $appointments = Appointment::where('user_id', auth()->id())
+            ->latest()
+            ->get();
+
         return view('patient.dashboard', compact('appointments'));
     })->name('patient.dashboard');
 
     Route::match(['get', 'post'], '/appointments/create', function (Request $request) {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        if ($role !== 'patient') {
-            return redirect()->route('staff.dashboard');
-        }
+        abort_unless(auth()->user()->role === 'patient', 403);
+        abort_unless(
+            strtolower(auth()->user()->status ?? '') === 'approved',
+            403,
+            'Your account is awaiting barangay residency verification.'
+        );
 
         if ($request->isMethod('post')) {
-            $request->validate([
-                'consultation_date' => 'required|date',
+            $data = $request->validate([
+                'consultation_date' => 'required|date|after_or_equal:today',
                 'time_slot' => 'required|string',
                 'symptoms' => 'required|string',
-                'other_service' => 'required_if:symptoms,Others (General Checkup)|nullable|string|max:255',
+                'other_service' => 'nullable|string|max:255',
             ]);
 
-            Appointment::create([
-                'user_id' => auth()->id(),
-                'consultation_date' => $request->consultation_date,
-                'time_slot' => $request->time_slot,
-                'symptoms' => $request->symptoms,
-                'other_service' => $request->symptoms === 'Others (General Checkup)' ? $request->other_service : null,
-                'status' => 'Pending',
-            ]);
+            // Assign explicitly; does not depend on model mass-assignment settings.
+            $appointment = new Appointment();
+            $appointment->user_id = auth()->id();
+            $appointment->consultation_date = $data['consultation_date'];
+            $appointment->time_slot = $data['time_slot'];
+            $appointment->symptoms = $data['symptoms'];
+            $appointment->other_service = $data['other_service'] ?? null;
+            $appointment->status = 'Pending';
+            $appointment->attendance_status = 'unconfirmed';
+            $appointment->save();
 
-            return redirect()->route('patient.dashboard')->with('success', 'Appointment submitted successfully!');
+            return redirect()->route('patient.dashboard')
+                ->with('success', 'Appointment submitted successfully!');
         }
 
         return view('patient.appointments.create');
     })->name('appointments.create');
+    
+    /*
+    |----------------------------------------------------------------------
+    | Barangay Health Worker: dashboard and resident review
+    |----------------------------------------------------------------------
+    */
+
+    Route::get('/bhw/dashboard', function () {
+        abort_unless(auth()->user()->role === 'bhw', 403);
+
+        $pendingPatients = User::where('role', 'patient')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+        $pendingResidents = $pendingPatients;
+
+        $appointments = Appointment::with('user')
+            ->orderBy('consultation_date')
+            ->get();
+
+
+
+            $upcoming = $appointments->filter(function ($appointment) {
+            $status = strtolower(trim((string) ($appointment->status ?? 'pending')));
+            $attendance = strtolower(trim((string) ($appointment->attendance_status ?? 'unconfirmed')));
+
+            return $status !== 'rejected'
+                && !in_array($attendance, ['attended', 'no_show'], true);
+        })->values();
+
+        // History: confirmed attended visits, no-shows, or rejected requests.
+        // Attended appointments move here even if their scheduled date is today.
+        $past = $appointments->filter(function ($appointment) {
+            $status = strtolower(trim((string) ($appointment->status ?? 'pending')));
+            $attendance = strtolower(trim((string) ($appointment->attendance_status ?? 'unconfirmed')));
+
+            return $status === 'rejected'
+                || in_array($attendance, ['attended', 'no_show'], true);
+        })->sortByDesc('consultation_date')->values();
+
+        // Only approved appointments on or before today can be verified.
+        $attendanceQueue = Appointment::with('user')
+            ->where('status', 'Approved')
+            ->whereDate('consultation_date', '<=', today())
+            ->where(function ($query) {
+                $query->whereNull('attendance_status')
+                    ->orWhere('attendance_status', 'unconfirmed');
+            })
+            ->orderBy('consultation_date')
+            ->get();
+
+        // Count only approved appointments whose attendance was confirmed.
+        $currentYear = now()->year;
+        $attendedAppointments = Appointment::where('status', 'Approved')
+            ->where('attendance_status', 'attended')
+            ->whereDate('consultation_date', '<=', today())
+            ->whereYear('consultation_date', $currentYear)
+            ->get();
+
+             $totalYearCount = $attendedAppointments->count();
+        $symptomStats = [];
+
+        if ($totalYearCount > 0) {
+            foreach ($attendedAppointments->groupBy('symptoms') as $symptom => $group) {
+                $count = $group->count();
+                $symptomStats[] = [
+                    'label' => $symptom ?: 'Others',
+                    'count' => $count,
+                    'percentage' => round(($count / $totalYearCount) * 100),
+                ];
+            }
+        }
+
+        return view('bhw.dashboard', compact(
+            'pendingPatients',
+            'pendingResidents',
+            'appointments',
+            'upcoming',
+            'past',
+            'attendanceQueue',
+            'symptomStats',
+            'currentYear',
+            'totalYearCount'
+        ));
+    })->name('bhw.dashboard');
+
+    Route::patch('/bhw/users/{user}/verify', function (Request $request, User $user) {
+        abort_unless(auth()->user()->role === 'bhw', 403);
+
+        $validated = $request->validate([
+            'status' => 'required|in:approved,rejected',
+        ]);
+
+        DB::transaction(function () use ($user, $validated) {
+            $patient = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            abort_unless(
+                $patient->role === 'patient' && $patient->status === 'pending',
+                409,
+                'This registration has already been reviewed.'
+            );
+
+            $patient->status = $validated['status'];
+            $patient->save();
+        });
+
+         return redirect()->route('bhw.dashboard')
+            ->with('success', 'Patient residency verification updated successfully!');
+    })->name('bhw.users.verify');
+
+    Route::patch('/bhw/appointments/{appointment}/attendance', function (Request $request, Appointment $appointment) {
+        abort_unless(
+            auth()->user()->role === 'bhw',
+            403,
+            'Only BHW users can confirm attendance.'
+        );
+
+        $validated = $request->validate([
+            'attendance_status' => 'required|in:attended,no_show',
+        ]);
+
+        DB::transaction(function () use ($appointment, $validated) {
+            $record = Appointment::whereKey($appointment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $record->status === 'Approved',
+                403,
+                'Only approved appointments can have attendance confirmed.'
+            );
+
+            $date = Carbon::parse($record->consultation_date)->startOfDay();
+
+            abort_unless(
+                $date->lte(today()),
+                403,
+                'Future appointments cannot be marked as attended.'
+            );
+
+    
+            if ($validated['attendance_status'] === 'no_show') {
+                abort_unless(
+                    $date->lt(today()),
+                    403,
+                    'No-show may only be recorded after the scheduled day.'
+                );
+            }
+
+            abort_unless(
+                in_array($record->attendance_status, [null, 'unconfirmed'], true),
+                409,
+                'Attendance has already been confirmed.'
+            );
+
+             $record->attendance_status = $validated['attendance_status'];
+            $record->attendance_verified_by = auth()->id();
+            $record->attendance_verified_at = now();
+            $record->save();
+        });
+
+        return redirect()->route('bhw.dashboard')
+            ->with('success', 'Appointment attendance recorded successfully!');
+    })->name('bhw.appointments.attendance');
+
+    /*
+    |----------------------------------------------------------------------
+    | Healthcare Personnel: dashboard and appointment approvals
+    |----------------------------------------------------------------------
+    */
+
+    Route::get('/staff/dashboard', function () {
+        abort_unless(auth()->user()->role === 'healthcare_personnel', 403);
+
+        $appointments = Appointment::with('user')->latest()->get();
+        $currentYear = now()->year;
+
+        // Same confirmed attendance metric as the BHW dashboard.
+        $attendedAppointments = Appointment::where('status', 'Approved')
+            ->where('attendance_status', 'attended')
+            ->whereDate('consultation_date', '<=', today())
+            ->whereYear('consultation_date', $currentYear)
+            ->get();
+
+            $totalYearCount = $attendedAppointments->count();
+        $symptomStats = [];
+
+        if ($totalYearCount > 0) {
+            foreach ($attendedAppointments->groupBy('symptoms') as $symptom => $group) {
+                $count = $group->count();
+                $symptomStats[] = [
+                    'label' => $symptom ?: 'Others',
+                    'count' => $count,
+                    'percentage' => round(($count / $totalYearCount) * 100),
+                ];
+            }
+        }
+
+        return view('staff.dashboard', compact(
+            'appointments', 'symptomStats', 'currentYear', 'totalYearCount'
+        ));
+    })->name('staff.dashboard');
+
+    Route::match(['post', 'patch'], '/appointments/{appointment}/update', function (Request $request, Appointment $appointment) {
+        abort_unless(
+            auth()->user()->role === 'healthcare_personnel',
+            403,
+            'Only Healthcare Personnel can update appointments.'
+        );
+
+        $validated = $request->validate([
+            'status' => 'required|in:Approved,Rejected,approved,rejected',
+            'rejection_reason' => 'required_if:status,Rejected,rejected|nullable|string|max:255',
+        ]);
+
+        abort_unless(
+            strtolower($appointment->status) === 'pending',
+            409,
+            'This appointment has already been processed.'
+        );
+
+        $status = ucfirst(strtolower($validated['status']));
+        $appointment->status = $status;
+        $appointment->rejection_reason = $status === 'Rejected'
+            ? $validated['rejection_reason']
+            : null;
+        $appointment->save();
+
+        return redirect()->route('staff.dashboard')
+            ->with('success', 'Appointment status updated successfully!');
+    })->name('appointments.update-status');
+
+    /*
+    |----------------------------------------------------------------------
+    | Profile management
+    |----------------------------------------------------------------------
+    */
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// ========================================================
-// Barangay Health Worker (BHW) Dashboard & Verification Group
-// ========================================================
-Route::middleware(['auth'])->group(function () {
-    Route::get('/bhw/dashboard', function () {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        
-        if ($role !== 'bhw') {
-            if ($role === 'healthcare_personnel') {
-                return redirect()->route('staff.dashboard');
-            } elseif ($role === 'patient') {
-                return redirect()->route('patient.dashboard');
-            }
-            return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
-        }
-
-        // Fetch patients pending residency verification for Ugac Sur
-        $pendingPatients = User::where('role', 'patient')
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
-
-        // Fetch approved appointments for monitoring upcoming/outgoing visits
-        $appointments = Appointment::with('user')->latest()->get();
-
-        // Analytics calculation (same as healthcare personnel)
-        $currentYear = date('Y');
-        $yearAppointments = Appointment::whereYear('created_at', $currentYear)
-            ->where('status', 'Approved')
-            ->get();
-        $totalYearCount = $yearAppointments->count();
-
-        $symptomStats = [];
-        if ($totalYearCount > 0) {
-            $grouped = $yearAppointments->groupBy('symptoms');
-            foreach ($grouped as $symptom => $group) {
-                $count = $group->count();
-                $percentage = round(($count / $totalYearCount) * 100);
-                $symptomStats[] = [
-                    'label' => $symptom,
-                    'count' => $count,
-                    'percentage' => $percentage,
-                ];
-            }
-        }
-
-        return view('bhw.dashboard', compact('pendingPatients', 'appointments', 'symptomStats', 'currentYear', 'totalYearCount'));
-    })->name('bhw.dashboard');
-
-    Route::patch('/bhw/users/{user}/verify', function (Request $request, User $user) {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        if ($role !== 'bhw') {
-            return redirect()->route('dashboard');
-        }
-
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-        ]);
-
-        $user->update([
-            'status' => $request->status,
-        ]);
-
-        return redirect()->route('bhw.dashboard')->with('success', 'Patient residency status updated successfully!');
-    })->name('bhw.users.verify');
-});
-
-// ========================================================
-// Healthcare Personnel Dashboard & Appointment Management Group
-// ========================================================
-Route::middleware(['auth'])->group(function () {
-    Route::get('/staff/dashboard', function () {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        
-        if ($role !== 'healthcare_personnel') {
-            if ($role === 'patient') {
-                return redirect()->route('patient.dashboard');
-            } elseif ($role === 'bhw') {
-                return redirect()->route('bhw.dashboard');
-            }
-            return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
-        }
-
-        $appointments = Appointment::with('user')->latest()->get();
-        
-        $currentYear = date('Y');
-        $yearAppointments = Appointment::whereYear('created_at', $currentYear)
-            ->where('status', 'Approved')
-            ->get();
-        $totalYearCount = $yearAppointments->count();
-
-        $symptomStats = [];
-        if ($totalYearCount > 0) {
-            $grouped = $yearAppointments->groupBy('symptoms');
-            foreach ($grouped as $symptom => $group) {
-                $count = $group->count();
-                $percentage = round(($count / $totalYearCount) * 100);
-                $symptomStats[] = [
-                    'label' => $symptom,
-                    'count' => $count,
-                    'percentage' => $percentage,
-                ];
-            }
-        }
-
-        return view('staff.dashboard', compact('appointments', 'symptomStats', 'currentYear', 'totalYearCount'));
-    })->name('staff.dashboard');
-
-    Route::patch('/appointments/{appointment}/update', function (Request $request, Appointment $appointment) {
-        $role = strtolower(trim(auth()->user()->role ?? ''));
-        if ($role !== 'healthcare_personnel') {
-            return redirect()->route('patient.dashboard');
-        }
-
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-            'rejection_reason' => 'nullable|string|max:255',
-        ]);
-
-        $appointment->update([
-            'status' => ucfirst($request->status),
-            'rejection_reason' => strtolower($request->status) === 'rejected' ? $request->rejection_reason : null,
-        ]);
-
-        return redirect()->route('staff.dashboard')->with('success', 'Appointment status updated successfully!');
-    })->name('staff.appointment.update');
-});
-
+// Laravel Breeze authentication routes. Do not duplicate /login here.
 require __DIR__.'/auth.php';

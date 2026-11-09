@@ -7,12 +7,13 @@ use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
-     * Display the login view.
+     * Display login page.
      */
     public function create(): View
     {
@@ -20,51 +21,144 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * Handle an incoming authentication request.
+     * Authenticate and check account approval.
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        $request->validate([
+            'role' => [
+                'required',
+                'in:administrator,bhw,healthcare_personnel,patient',
+            ],
+        ]);
+
+        // Check email and password first.
         $request->authenticate();
 
         $user = $request->user();
 
-        // Strict role validation checking if database role matches the selected dropdown
-        if (!$user->hasRole($request->input('role'))) {
+        $registeredRole = strtolower(
+            trim($user->role ?? '')
+        );
+
+        $selectedRole = $request->input('role');
+
+        // The selected role must match the database.
+        if ($registeredRole !== $selectedRole) {
             Auth::guard('web')->logout();
 
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'role' => 'The selected role does not match your registered account.',
+            throw ValidationException::withMessages([
+                'role' => 'The selected role does not match your account.',
             ]);
+        }
+
+        // Patient accounts require BHW verification.
+        if ($registeredRole === 'patient') {
+
+            $status = strtolower(
+                trim($user->status ?? 'pending')
+            );
+
+            if ($status === 'pending') {
+
+                Auth::guard('web')->logout();
+
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()
+                    ->route('login')
+                    ->with(
+                        'account_notice',
+                        'Your account is still pending. '
+                        . 'A Barangay Health Worker must '
+                        . 'verify your residency before '
+                        . 'you can access your dashboard.'
+                    )
+                    ->with('account_notice_type', 'pending');
+            }
+
+            if ($status === 'rejected') {
+
+                Auth::guard('web')->logout();
+
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()
+                    ->route('login')
+                    ->with(
+                        'account_notice',
+                        'Your account verification was rejected. '
+                        . 'Please contact your barangay health office '
+                        . 'for assistance.'
+                    )
+                    ->with('account_notice_type', 'rejected');
+            }
+
+            if ($status !== 'approved') {
+
+                Auth::guard('web')->logout();
+
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                throw ValidationException::withMessages([
+                    'email' => 'Your account is not authorized for access.',
+                ]);
+            }
         }
 
         $request->session()->regenerate();
 
-        // Redirect based on validated user role
-        $role = strtolower(trim($user->role ?? ''));
+        // Redirect to the matching dashboard.
+        if ($registeredRole === 'patient') {
+            return redirect()
+                ->route('patient.dashboard')
+                ->with('success', 'Your account is approved. Welcome!');
+        }
 
-        if ($role === 'patient') {
-            return redirect()->route('patient.dashboard');
-        } elseif ($role === 'bhw') {
+        if ($registeredRole === 'bhw') {
             return redirect()->route('bhw.dashboard');
-        } elseif ($role === 'healthcare_personnel') {
+        }
+
+        if ($registeredRole === 'healthcare_personnel') {
             return redirect()->route('staff.dashboard');
         }
 
-        return redirect()->route('dashboard');
+        // Administrator dashboard is not set up yet.
+        if ($registeredRole === 'administrator') {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'role' => 'Administrator dashboard is not configured yet.',
+            ]);
+        }
+
+        Auth::guard('web')->logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        throw ValidationException::withMessages([
+            'role' => 'Invalid account role.',
+        ]);
     }
 
     /**
-     * Destroy an authenticated session.
+     * Log out.
      */
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return redirect('/');
