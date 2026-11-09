@@ -1,183 +1,498 @@
+
 <x-app-layout>
-    <x-slot name="header"></x-slot>
+    <x-slot name="header">
+        <h2 class="text-xl font-semibold text-[#184e37]">
+            Healthcare Personnel
+        </h2>
+    </x-slot>
 
-    <div class="py-12" x-data="{ currentTab: 'appointments' }">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            
-            <!-- STICKY SIDEBAR + CONTENT GRID -->
-            <div style="display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start;">
-                
-                <!-- LEFT SIDEBAR -->
-                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <!-- Appointments Button -->
-                        <button type="button"
-                                @click="currentTab = 'appointments'"
-                                :style="currentTab === 'appointments' ? 'background-color: #047857; color: #ffffff; font-weight: bold;' : 'background-color: #d1fae5; color: #065f46; font-weight: 500;'"
-                                style="width: 100%; text-align: left; padding: 12px 16px; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s;"
-                                @mouseenter="$el.style.backgroundColor='#047857'; $el.style.color='#ffffff';"
-                                @mouseleave="if(currentTab !== 'appointments') { $el.style.backgroundColor='#d1fae5'; $el.style.color='#065f46'; }">
-                            Appointments
-                        </button>
+    <style>
+        .health-dashboard {
+            background: #f2f7f3;
+            min-height: calc(100vh - 130px);
+            padding: 35px 20px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #22372d;
+        }
 
-                        <!-- Analytics Button -->
-                        <button type="button"
-                                @click="currentTab = 'analytics'"
-                                :style="currentTab === 'analytics' ? 'background-color: #047857; color: #ffffff; font-weight: bold;' : 'background-color: #d1fae5; color: #065f46; font-weight: 500;'"
-                                style="width: 100%; text-align: left; padding: 12px 16px; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s;"
-                                @mouseenter="$el.style.backgroundColor='#047857'; $el.style.color='#ffffff';"
-                                @mouseleave="if(currentTab !== 'analytics') { $el.style.backgroundColor='#d1fae5'; $el.style.color='#065f46'; }">
-                            Analytics
-                        </button>
-                    </div>
+        .health-container {
+            max-width: 1280px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 25px;
+            align-items: start;
+        }
 
-                    <!-- Welcome User at the Bottom -->
-                    <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 24px;">
-                        <p style="font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Session</p>
-                        <p style="font-size: 13px; font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Welcome, {{ auth()->user()->name }}</p>
-                    </div>
+        .health-sidebar,
+        .health-panel {
+            background: #ffffff;
+            border: 1px solid #dce9df;
+            border-radius: 15px;
+            box-shadow: 0 3px 12px rgba(20,70,45,.04);
+        }
+
+        .health-sidebar {
+            padding: 20px;
+            min-height: 470px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .health-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        .health-menu button {
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            border: none;
+            border-radius: 9px;
+            padding: 13px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: .2s;
+        }
+
+        .health-menu button.active {
+            background: #216e4f;
+            color: #ffffff;
+        }
+
+        .health-menu button:not(.active) {
+            background: #e8f5ec;
+            color: #216e4f;
+        }
+
+        .health-menu button:hover {
+            opacity: .88;
+        }
+
+        .health-session {
+            margin-top: auto;
+            padding-top: 18px;
+            border-top: 1px solid #e2ece5;
+        }
+
+        .health-session small {
+            display: block;
+            color: #789080;
+            letter-spacing: 1px;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+
+        .health-session strong {
+            color: #184e37;
+            font-size: 13px;
+        }
+
+        .health-panel {
+            padding: 28px;
+            min-width: 0;
+        }
+
+        .health-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .health-panel-header h3 {
+            font-size: 20px;
+            font-weight: 650;
+            color: #184e37;
+        }
+
+        .health-count {
+            background: #e8f5ec;
+            color: #216e4f;
+            padding: 7px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .health-table-wrap {
+            overflow-x: auto;
+        }
+
+        .health-table {
+            width: 100%;
+            min-width: 720px;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .health-table th {
+            padding: 15px;
+            background: #f3f9f4;
+            color: #55715e;
+            font-size: 11px;
+            font-weight: 750;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+
+        .health-table td {
+            padding: 18px 15px;
+            border-bottom: 1px solid #e5eee7;
+            color: #34483b;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .health-table td strong {
+            color: #183e30;
+        }
+
+        .health-muted {
+            font-size: 12px;
+            color: #819187;
+            margin-top: 5px;
+        }
+
+        .health-status {
+            display: inline-block;
+            padding: 6px 13px;
+            border-radius: 30px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .status-approved {
+            background: #dcf5e6;
+            color: #176445;
+        }
+
+        .status-pending {
+            background: #fff2d6;
+            color: #996313;
+        }
+
+        .status-rejected {
+            background: #ffe5e5;
+            color: #ad3333;
+        }
+
+        .health-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .health-approve,
+        .health-reject {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 13px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .health-approve {
+            background: #216e4f;
+            color: white;
+        }
+
+        .health-reject {
+            background: #ffe5e5;
+            color: #a12b2b;
+        }
+
+        .health-reason {
+            width: 150px;
+            border: 1px solid #dce9df;
+            border-radius: 8px;
+            padding: 9px;
+            font-size: 12px;
+        }
+
+        .health-alert {
+            background: #e8f5ec;
+            color: #216e4f;
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .health-empty {
+            padding: 35px 15px;
+            text-align: center;
+            color: #819187;
+            font-size: 14px;
+        }
+
+        @media(max-width: 800px) {
+            .health-container {
+                grid-template-columns: 1fr;
+            }
+
+            .health-sidebar {
+                min-height: auto;
+            }
+
+            .health-session {
+                margin-top: 25px;
+            }
+
+            .health-panel {
+                padding: 18px;
+            }
+        }
+    </style>
+
+    @php
+        $appointmentList = collect($appointments ?? []);
+    @endphp
+
+    <div class="health-dashboard">
+        <div class="health-container">
+
+            <!-- Sidebar -->
+            <aside class="health-sidebar">
+                <div class="health-menu">
+
+                    <button
+                        type="button"
+                        class="active"
+                        id="appointmentsTab"
+                        onclick="showHealthTab('appointments')"
+                    >
+                        Appointments
+                    </button>
+
+                    <button
+                        type="button"
+                        id="analyticsTab"
+                        onclick="showHealthTab('analytics')"
+                    >
+                        Analytics
+                    </button>
+
                 </div>
 
-                <!-- RIGHT CONTENT AREA -->
-                <div style="min-width: 0;">
+                <div class="health-session">
+                    <small>SESSION</small>
+                    <strong>
+                        Welcome, {{ Auth::user()->name }}
+                    </strong>
+                </div>
+            </aside>
 
-                    <!-- Success Alert -->
-                    @if(session('success'))
-                        <div style="padding: 16px; margin-bottom: 16px; font-size: 14px; color: #065f46; background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px;" role="alert">
-                            <span style="font-weight: 600;">Success!</span> {{ session('success') }}
-                        </div>
-                    @endif
+            <!-- Main Content -->
+            <section class="health-panel">
 
-                    <!-- TAB 1: APPOINTMENTS MANAGEMENT -->
-                    <div x-show="currentTab === 'appointments'" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid #e5e7eb; padding: 24px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                            <h3 style="font-size: 18px; font-weight: 500; color: #111827;">Community Consultation Requests</h3>
-                            <span style="padding: 4px 12px; font-size: 12px; font-weight: 600; color: #4b5563; background-color: #f3f4f6; border-radius: 9999px;">
-                                Total: {{ isset($appointments) ? $appointments->count() : 0 }}
-                            </span>
-                        </div>
+                @if(session('success'))
+                    <div class="health-alert">
+                        {{ session('success') }}
+                    </div>
+                @endif
 
-                        @if(isset($appointments) && $appointments->count() > 0)
-                            <div style="overflow-x-auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-                                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                                    <thead style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                                        <tr>
-                                            <th style="padding: 12px 24px; font-size: 11px; font-weight: 500; color: #6b7280; text-transform: uppercase;">Patient Name</th>
-                                            <th style="padding: 12px 24px; font-size: 11px; font-weight: 500; color: #6b7280; text-transform: uppercase;">Preferred Date</th>
-                                            <th style="padding: 12px 24px; font-size: 11px; font-weight: 500; color: #6b7280; text-transform: uppercase;">Symptoms / Complaint</th>
-                                            <th style="padding: 12px 24px; font-size: 11px; font-weight: 500; color: #6b7280; text-transform: uppercase;">Status</th>
-                                            <th style="padding: 12px 24px; font-size: 11px; font-weight: 500; color: #6b7280; text-transform: uppercase; text-align: right;">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style="background-color: #ffffff;">
-                                        @foreach($appointments as $appointment)
-                                            <tr style="border-bottom: 1px solid #e5e7eb;">
-                                                <td style="padding: 16px 24px; font-size: 14px; font-weight: 500; color: #111827;">
-                                                    {{ $appointment->patient->name ?? 'Unknown' }}
-                                                    <div style="font-size: 12px; color: #6b7280;">{{ $appointment->patient->email ?? '' }}</div>
-                                                </td>
-                                                <td style="padding: 16px 24px; font-size: 14px; color: #4b5563;">
-                                                    {{ $appointment->consultation_date }}
-                                                    <div style="font-size: 12px; color: #9ca3af; text-transform: capitalize;">{{ $appointment->time_slot }}</div>
-                                                </td>
-                                                <td style="padding: 16px 24px; font-size: 14px; color: #374151; max-width: 200px;">
-                                                    {{ $appointment->symptoms }}
-                                                    @if($appointment->other_service)
-                                                        <div style="font-size: 12px; color: #047857; font-weight: 500; margin-top: 4px;">
-                                                            Details: {{ $appointment->other_service }}
-                                                        </div>
-                                                    @endif
-                                                </td>
-                                                <td style="padding: 16px 24px; font-size: 14px;">
-                                                    @php
-                                                        $statusClass = match(strtolower($appointment->status)) {
-                                                            'approved' => 'background-color: #d1fae5; color: #065f46;',
-                                                            'rejected' => 'background-color: #fee2e2; color: #991b1b;',
-                                                            default => 'background-color: #fef3c7; color: #92400e;',
-                                                        };
-                                                    @endphp
-                                                    <span style="padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 9999px; {{ $statusClass }}">
-                                                        {{ ucfirst($appointment->status) }}
-                                                    </span>
-                                                    @if(strtolower($appointment->status) === 'rejected' && $appointment->rejection_reason)
-                                                        <div style="font-size: 11px; color: #ef4444; margin-top: 4px;">Reason: {{ $appointment->rejection_reason }}</div>
-                                                    @endif
-                                                </td>
-                                                <td style="padding: 16px 24px; text-align: right; font-size: 14px;">
-                                                    @if(strtolower($appointment->status) === 'pending')
-                                                        <form action="{{ route('staff.appointment.update', $appointment->id) }}" method="POST" style="display: inline;">
-                                                            @csrf
-                                                            @method('PATCH')
-                                                            <input type="hidden" name="status" value="approved">
-                                                            <button type="submit" style="padding: 6px 12px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-transform: uppercase;">
-                                                                Approve
-                                                            </button>
-                                                        </form>
+                <!-- Appointments Section -->
+                <div id="appointmentsContent">
 
-                                                        <form action="{{ route('staff.appointment.update', $appointment->id) }}" method="POST" style="display: inline; margin-left: 4px;" onsubmit="let reason = prompt('Please provide a reason for rejection:'); if(!reason) return false; this.querySelector('input[name=rejection_reason]').value = reason;">
-                                                            @csrf
-                                                            @method('PATCH')
-                                                            <input type="hidden" name="status" value="rejected">
-                                                            <input type="hidden" name="rejection_reason" value="">
-                                                            <button type="submit" style="padding: 6px 12px; background-color: #dc2626; color: #ffffff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-transform: uppercase;">
-                                                                Reject
-                                                            </button>
-                                                        </form>
-                                                    @else
-                                                        <span style="font-size: 12px; color: #9ca3af; font-weight: 500;">Processed</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @else
-                            <div style="text-align: center; padding: 48px; background-color: #f9fafb; border-radius: 8px; border: 2px dashed #e5e7eb;">
-                                <p style="font-size: 14px; color: #6b7280;">No consultation requests found in the system.</p>
-                            </div>
-                        @endif
+                    <div class="health-panel-header">
+                        <h3>Community Consultation Requests</h3>
+
+                        <span class="health-count">
+                            Total: {{ $appointmentList->count() }}
+                        </span>
                     </div>
 
-                    <!-- TAB 2: ANNUAL HEALTH ANALYTICS -->
-                    <div x-show="currentTab === 'analytics'" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid #e5e7eb; padding: 24px; display: none;">
-                        <div style="margin-bottom: 24px;">
-                            <h3 style="font-size: 18px; font-weight: 500; color: #111827;">Annual Health & Sickness Report ({{ $currentYear ?? date('Y') }})</h3>
-                            <p style="font-size: 12px; color: #6b7280; margin-top: 4px;">Percentage breakdown based on total reports ({{ $totalYearCount ?? 0 }} cases)</p>
-                        </div>
+                    <div class="health-table-wrap">
+                        <table class="health-table">
+                            <thead>
+                                <tr>
+                                    <th>Patient Name</th>
+                                    <th>Preferred Date</th>
+                                    <th>Symptoms / Complaint</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
 
-                        @if(isset($symptomStats) && count($symptomStats) > 0)
-                            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
-                                @foreach($symptomStats as $stat)
+                            <tbody>
+                                @forelse($appointmentList as $appointment)
                                     @php
-                                        $colorHex = match($loop->index % 4) {
-                                            0 => '#4f46e5',
-                                            1 => '#dc2626',
-                                            2 => '#2563eb',
-                                            default => '#16a34a',
-                                        };
+                                        $status = strtolower($appointment->status ?? 'pending');
                                     @endphp
-                                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-                                        <div style="position: relative; width: 112px; height: 112px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; background: conic-gradient({{ $colorHex }} {{ $stat['percentage'] }}%, #e5e7eb 0%);">
-                                            <div style="position: absolute; width: 88px; height: 88px; background-color: #ffffff; border-radius: 9999px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06);">
-                                                <span style="font-size: 20px; font-weight: bold; color: {{ $colorHex }};">{{ $stat['percentage'] }}%</span>
-                                            </div>
-                                        </div>
-                                        <h4 style="font-weight: 600; color: #1f2937; font-size: 14px; margin-bottom: 4px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $stat['label'] }}">{{ $stat['label'] }}</h4>
-                                        <p style="font-size: 12px; color: #6b7280;">Reported Cases: <span style="font-weight: 500; color: #374151;">{{ $stat['count'] }}</span></p>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div style="text-align: center; padding: 48px; background-color: #f9fafb; border-radius: 8px; border: 2px dashed #e5e7eb;">
-                                <p style="font-size: 14px; color: #6b7280;">No annual health statistics available for {{ $currentYear ?? date('Y') }} yet.</p>
-                            </div>
-                        @endif
+
+                                    <tr>
+                                        <td>
+                                            <strong>
+                                                {{ $appointment->user->name ?? 'Unknown User' }}
+                                            </strong>
+
+                                            <p class="health-muted">
+                                                {{ $appointment->user->email ?? 'No Email' }}
+                                            </p>
+                                        </td>
+
+                                        <td>
+                                            {{ $appointment->consultation_date }}
+
+                                            <p class="health-muted">
+                                                {{ ucfirst($appointment->time_slot) }}
+                                            </p>
+                                        </td>
+
+                                        <td>
+                                            {{ $appointment->symptoms ?: 'Not provided' }}
+                                        </td>
+
+                                        <td>
+                                            <span class="health-status
+                                                {{ $status === 'approved' ? 'status-approved' :
+                                                ($status === 'pending' ? 'status-pending' : 'status-rejected') }}">
+                                                {{ ucfirst($status) }}
+                                            </span>
+
+                                            @if($status === 'rejected' && $appointment->rejection_reason)
+                                                <p class="health-muted">
+                                                    Reason: {{ $appointment->rejection_reason }}
+                                                </p>
+                                            @endif
+                                        </td>
+
+                                        <td>
+                                            @if($status === 'pending')
+                                                <div class="health-actions">
+
+                                                    <!-- Approve -->
+                                                    <form
+                                                        method="POST"
+                                                        action="{{ route('appointments.update-status', $appointment->id) }}"
+                                                    >
+                                                        @csrf
+
+                                                        <input
+                                                            type="hidden"
+                                                            name="status"
+                                                            value="Approved"
+                                                        >
+
+                                                        <button
+                                                            type="submit"
+                                                            class="health-approve"
+                                                        >
+                                                            Approve
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Reject -->
+                                                    <form
+                                                        method="POST"
+                                                        action="{{ route('appointments.update-status', $appointment->id) }}"
+                                                    >
+                                                        @csrf
+
+                                                        <input
+                                                            type="hidden"
+                                                            name="status"
+                                                            value="Rejected"
+                                                        >
+
+                                                        <input
+                                                            type="text"
+                                                            name="rejection_reason"
+                                                            placeholder="Reason..."
+                                                            required
+                                                            class="health-reason"
+                                                        >
+
+                                                        <button
+                                                            type="submit"
+                                                            class="health-reject"
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </form>
+
+                                                </div>
+                                            @else
+                                                <span class="health-muted">
+                                                    Processed
+                                                </span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="health-empty">
+                                            No appointment requests found.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Analytics Section -->
+                <div id="analyticsContent" style="display:none;">
+
+                    <div class="health-panel-header">
+                        <h3>Analytics</h3>
+                    </div>
+
+                    <p class="health-muted">
+                        Appointment summary
+                    </p>
+
+                    <div style="margin-top:20px; line-height:2;">
+                        <p>
+                            Total:
+                            {{ $appointmentList->count() }}
+                        </p>
+
+                        <p>
+                            Pending:
+                            {{ $appointmentList->where('status', 'Pending')->count() }}
+                        </p>
+
+                        <p>
+                            Approved:
+                            {{ $appointmentList->where('status', 'Approved')->count() }}
+                        </p>
+
+                        <p>
+                            Rejected:
+                            {{ $appointmentList->where('status', 'Rejected')->count() }}
+                        </p>
                     </div>
 
                 </div>
 
-            </div>
+            </section>
+
         </div>
     </div>
+
+    <script>
+        function showHealthTab(tab) {
+            const isAppointments = tab === 'appointments';
+
+            document.getElementById('appointmentsContent')
+                .style.display = isAppointments ? 'block' : 'none';
+
+            document.getElementById('analyticsContent')
+                .style.display = isAppointments ? 'none' : 'block';
+
+            document.getElementById('appointmentsTab')
+                .classList.toggle('active', isAppointments);
+
+            document.getElementById('analyticsTab')
+                .classList.toggle('active', !isAppointments);
+        }
+    </script>
+
 </x-app-layout>

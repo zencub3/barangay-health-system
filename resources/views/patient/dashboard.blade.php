@@ -1,63 +1,263 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Patient Dashboard') }}
+        <h2 class="text-xl font-semibold text-[#184e37]">
+            Patient Dashboard
         </h2>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            
-            <!-- Session Success Message Notification -->
-            @if(session('success'))
-                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
-                    <span class="block sm:inline">{{ session('success') }}</span>
-                </div>
-            @endif
+    <style>
+        .patient-dashboard {
+            background: #f2f7f3;
+            min-height: calc(100vh - 130px);
+            padding: 35px 20px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #22372d;
+        }
 
-            <!-- 1. Quick Action: Select Appointment Scheduling -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 text-gray-900">
-                <h3 class="text-lg font-medium mb-2">Book a Consultation</h3>
-                <p class="text-sm text-gray-600 mb-4">Choose your preferred date, available time slot, and presenting symptoms or reason for visit.</p>
-                <a href="{{ route('appointments.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-500">
+        .patient-container {
+            max-width: 1180px;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .patient-card {
+            background: #ffffff;
+            border: 1px solid #dce9df;
+            border-radius: 16px;
+            box-shadow: 0 3px 12px rgba(20,70,45,.04);
+            padding: 30px;
+        }
+
+        .patient-card h3 {
+            font-size: 19px;
+            font-weight: 650;
+            color: #184e37;
+            margin-bottom: 12px;
+        }
+
+        .patient-card p {
+            font-size: 15px;
+            color: #61786b;
+            line-height: 1.8;
+        }
+
+        .patient-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 18px;
+            padding: 13px 24px;
+            border-radius: 10px;
+            background: #216e4f;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 700;
+            transition: .2s ease;
+        }
+
+        .patient-btn:hover {
+            background: #175239;
+        }
+
+        .appointments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 10px;
+        }
+
+        .appointment-item {
+            border: 1px solid #dce9df;
+            border-radius: 14px;
+            background: #f8fcf9;
+            padding: 18px 20px;
+        }
+
+        .appointment-item h4 {
+            margin: 0 0 8px 0;
+            font-size: 17px;
+            color: #184e37;
+            font-weight: 650;
+        }
+
+        .appointment-item p {
+            margin: 4px 0;
+            font-size: 14px;
+            color: #556d60;
+        }
+
+        .status-badge {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 6px 13px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .status-pending {
+            background: #fff2d6;
+            color: #996313;
+        }
+
+        .status-approved {
+            background: #dcf5e6;
+            color: #176445;
+        }
+
+        .status-rejected {
+            background: #ffe5e5;
+            color: #ad3333;
+        }
+
+        .empty-state {
+            padding: 18px 0 4px;
+            color: #819187;
+            font-size: 14px;
+        }
+
+        .history-box {
+            border: 1px dashed #cfe1d5;
+            background: #f8fcf9;
+            border-radius: 14px;
+            padding: 18px 20px;
+            margin-top: 14px;
+        }
+
+        .history-box p {
+            margin: 0;
+            font-size: 14px;
+            color: #667d71;
+        }
+
+        @media (max-width: 768px) {
+            .patient-dashboard {
+                padding: 24px 14px;
+            }
+
+            .patient-card {
+                padding: 22px 18px;
+            }
+        }
+    </style>
+
+    @php
+        $appointmentList = collect($appointments ?? []);
+        $historyList = collect($consultationHistory ?? []);
+    @endphp
+
+    <div class="patient-dashboard">
+        <div class="patient-container">
+
+            <!-- Book a Consultation -->
+            <div class="patient-card">
+                <h3>Book a Consultation</h3>
+                <p>
+                    Choose your preferred date, available time slot, and present
+                    your symptoms or reason for visit.
+                </p>
+
+                <a href="{{ url('/appointments/create') }}" class="patient-btn">
                     Schedule Appointment
                 </a>
             </div>
 
-            <!-- 2. Appointment Status Tracker (Approved / Pending / Rejection Notice) -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 text-gray-900">
-                <h3 class="text-lg font-medium mb-4">My Appointments</h3>
-                
-                @forelse($appointments ?? [] as $appointment)
-                    <div class="border rounded-md p-4 bg-gray-50 flex justify-between items-center mb-3">
-                        <div>
-                            <p class="font-semibold text-indigo-600">Reason: {{ $appointment->symptoms }}</p>
-                            <p class="text-sm text-gray-600">Date: {{ $appointment->consultation_date }} ({{ ucfirst($appointment->time_slot) }})</p>
-                            
-                            @if($appointment->status === 'Pending')
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mt-2">
-                                    Pending Approval
-                                </span>
-                            @elseif($appointment->status === 'Approved')
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
-                                    Confirmed Schedule
-                                </span>
-                            @else
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 mt-2">
-                                    Rejected: {{ $appointment->rejection_reason ?? 'No reason provided' }}
-                                </span>
-                            @endif
-                        </div>
+            <!-- My Appointments -->
+            <div class="patient-card">
+                <h3>My Appointments</h3>
+
+                @if($appointmentList->count() > 0)
+                    <div class="appointments-list">
+                        @foreach($appointmentList as $appointment)
+                            @php
+                                $status = strtolower($appointment->status ?? 'pending');
+                            @endphp
+
+                            <div class="appointment-item">
+                                <h4>
+                                    Reason: {{ $appointment->symptoms ?: 'Not provided' }}
+                                </h4>
+
+                                <p>
+                                    Date: {{ $appointment->consultation_date }}
+                                    ({{ ucfirst($appointment->time_slot ?? 'N/A') }})
+                                </p>
+
+                                @if($status === 'approved')
+                                    <span class="status-badge status-approved">
+                                        Confirmed Schedule
+                                    </span>
+                                @elseif($status === 'pending')
+                                    <span class="status-badge status-pending">
+                                        Pending Approval
+                                    </span>
+                                @elseif($status === 'rejected')
+                                    <span class="status-badge status-rejected">
+                                        Rejected
+                                    </span>
+
+                                    @if(!empty($appointment->rejection_reason))
+                                        <p style="margin-top:10px;">
+                                            Reason: {{ $appointment->rejection_reason }}
+                                        </p>
+                                    @endif
+                                @else
+                                    <span class="status-badge status-pending">
+                                        {{ ucfirst($status) }}
+                                    </span>
+                                @endif
+                            </div>
+                        @endforeach
                     </div>
-                @empty
-                    <p class="text-sm text-gray-500">You have no scheduled appointments yet. Click above to schedule one.</p>
-                @endforelse
+                @else
+                    <div class="empty-state">
+                        No appointments yet.
+                    </div>
+                @endif
             </div>
 
-            <!-- 3. Consultation History and Available Records -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 text-gray-900">
-                <h3 class="text-lg font-medium mb-4">Consultation History & Prescriptions</h3>
-                <p class="text-sm text-gray-600">Past medical advice, treatment instructions, and prescriptions will appear here after your health center visits.</p>
+            <!-- Consultation History & Prescriptions -->
+            <div class="patient-card">
+                <h3>Consultation History & Prescriptions</h3>
+                <p>
+                    Past medical advice, treatment instructions, and prescriptions
+                    will appear here after your health center visits.
+                </p>
+
+                @if($historyList->count() > 0)
+                    <div class="appointments-list">
+                        @foreach($historyList as $record)
+                            <div class="appointment-item">
+                                <h4>{{ $record->title ?? 'Consultation Record' }}</h4>
+
+                                <p>
+                                    Date:
+                                    {{ $record->date ?? 'No date available' }}
+                                </p>
+
+                                <p>
+                                    {{ $record->notes ?? 'No details available.' }}
+                                </p>
+
+                                @if(!empty($record->prescription))
+                                    <p style="margin-top:10px;">
+                                        <strong>Prescription:</strong>
+                                        {{ $record->prescription }}
+                                    </p>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="history-box">
+                        <p>
+                            No consultation history or prescriptions available yet.
+                        </p>
+                    </div>
+                @endif
             </div>
 
         </div>
