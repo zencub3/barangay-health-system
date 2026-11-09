@@ -28,27 +28,32 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
-if (!$user->hasRole($request->input('role'))) {
-    Auth::guard('web')->logout();
+        // Strict role validation checking if database role matches the selected dropdown
+        if (!$user->hasRole($request->input('role'))) {
+            Auth::guard('web')->logout();
 
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
 
-    throw \Illuminate\Validation\ValidationException::withMessages([
-        'role' => 'The selected role does not match your registered account.',
-    ]);
-}
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'role' => 'The selected role does not match your registered account.',
+            ]);
+        }
 
         $request->session()->regenerate();
 
-        // Redirect based on user role
-        $user = auth()->user();
-        if ($user->role === 'patient') {
+        // Redirect based on validated user role
+        $role = strtolower(trim($user->role ?? ''));
+
+        if ($role === 'patient') {
             return redirect()->route('patient.dashboard');
+        } elseif ($role === 'bhw') {
+            return redirect()->route('bhw.dashboard');
+        } elseif ($role === 'healthcare_personnel') {
+            return redirect()->route('staff.dashboard');
         }
 
-        // All other roles (bhw, healthcare_personnel, admin) go to staff dashboard
-        return redirect()->route('staff.dashboard');
+        return redirect()->route('dashboard');
     }
 
     /**

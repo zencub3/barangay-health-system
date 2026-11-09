@@ -18,6 +18,8 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->enum('role', ['admin', 'bhw', 'healthcare_personnel', 'patient'])->default('patient');
+            $table->string('barangay')->nullable();
+            $table->string('status')->default('pending');
             $table->rememberToken();
             $table->timestamps();
         });

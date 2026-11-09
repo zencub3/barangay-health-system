@@ -10,9 +10,9 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    // System roles
-    public const ROLE_ADMINISTRATOR = 'administrator';
-    public const ROLE_BHW = 'barangay_health_worker';
+    // System roles (matching database enum: 'admin', 'bhw', 'healthcare_personnel', 'patient')
+    public const ROLE_ADMINISTRATOR = 'admin';
+    public const ROLE_BHW = 'bhw';
     public const ROLE_HEALTHCARE = 'healthcare_personnel';
     public const ROLE_PATIENT = 'patient';
 
@@ -28,6 +28,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'barangay',
+        'status',
     ];
 
     protected $hidden = [
@@ -45,7 +47,16 @@ class User extends Authenticatable
 
     public function hasRole(string $role): bool
     {
-        return $this->role === $role;
+        $dbRole = strtolower(trim($this->role ?? ''));
+        $inputRole = strtolower(trim($role));
+
+        // Handle variations just in case
+        if (($dbRole === 'bhw' || $dbRole === 'barangay_health_worker') && 
+            ($inputRole === 'bhw' || $inputRole === 'barangay_health_worker')) {
+            return true;
+        }
+
+        return $dbRole === $inputRole;
     }
 
     public function getRoleNameAttribute(): string

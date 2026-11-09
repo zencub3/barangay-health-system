@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Models\User;
 
 // Public Welcome Route
 Route::get('/', function () {
@@ -21,6 +22,8 @@ Route::get('/dashboard', function () {
     
     if ($role === 'healthcare_personnel') {
         return redirect()->route('staff.dashboard');
+    } elseif ($role === 'bhw') {
+        return redirect()->route('bhw.dashboard');
     } elseif ($role === 'patient') {
         return redirect()->route('patient.dashboard');
     }
@@ -39,6 +42,8 @@ Route::middleware(['auth'])->group(function () {
         if ($role !== 'patient') {
             if ($role === 'healthcare_personnel') {
                 return redirect()->route('staff.dashboard');
+            } elseif ($role === 'bhw') {
+                return redirect()->route('bhw.dashboard');
             }
             return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
         }
@@ -83,6 +88,73 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // ========================================================
+// Barangay Health Worker (BHW) Dashboard & Verification Group
+// ========================================================
+Route::middleware(['auth'])->group(function () {
+    Route::get('/bhw/dashboard', function () {
+        $role = strtolower(trim(auth()->user()->role ?? ''));
+        
+        if ($role !== 'bhw') {
+            if ($role === 'healthcare_personnel') {
+                return redirect()->route('staff.dashboard');
+            } elseif ($role === 'patient') {
+                return redirect()->route('patient.dashboard');
+            }
+            return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
+        }
+
+        // Fetch patients pending residency verification for Ugac Sur
+        $pendingPatients = User::where('role', 'patient')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        // Fetch approved appointments for monitoring upcoming/outgoing visits
+        $appointments = Appointment::with('user')->latest()->get();
+
+        // Analytics calculation (same as healthcare personnel)
+        $currentYear = date('Y');
+        $yearAppointments = Appointment::whereYear('created_at', $currentYear)
+            ->where('status', 'Approved')
+            ->get();
+        $totalYearCount = $yearAppointments->count();
+
+        $symptomStats = [];
+        if ($totalYearCount > 0) {
+            $grouped = $yearAppointments->groupBy('symptoms');
+            foreach ($grouped as $symptom => $group) {
+                $count = $group->count();
+                $percentage = round(($count / $totalYearCount) * 100);
+                $symptomStats[] = [
+                    'label' => $symptom,
+                    'count' => $count,
+                    'percentage' => $percentage,
+                ];
+            }
+        }
+
+        return view('bhw.dashboard', compact('pendingPatients', 'appointments', 'symptomStats', 'currentYear', 'totalYearCount'));
+    })->name('bhw.dashboard');
+
+    Route::patch('/bhw/users/{user}/verify', function (Request $request, User $user) {
+        $role = strtolower(trim(auth()->user()->role ?? ''));
+        if ($role !== 'bhw') {
+            return redirect()->route('dashboard');
+        }
+
+        $request->validate([
+            'status' => 'required|in:approved,rejected',
+        ]);
+
+        $user->update([
+            'status' => $request->status,
+        ]);
+
+        return redirect()->route('bhw.dashboard')->with('success', 'Patient residency status updated successfully!');
+    })->name('bhw.users.verify');
+});
+
+// ========================================================
 // Healthcare Personnel Dashboard & Appointment Management Group
 // ========================================================
 Route::middleware(['auth'])->group(function () {
@@ -92,6 +164,8 @@ Route::middleware(['auth'])->group(function () {
         if ($role !== 'healthcare_personnel') {
             if ($role === 'patient') {
                 return redirect()->route('patient.dashboard');
+            } elseif ($role === 'bhw') {
+                return redirect()->route('bhw.dashboard');
             }
             return redirect()->route('login')->withErrors(['email' => 'Unauthorized role type.']);
         }
