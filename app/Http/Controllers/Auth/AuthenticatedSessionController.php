@@ -26,6 +26,19 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        $user = $request->user();
+
+if (!$user->hasRole($request->input('role'))) {
+    Auth::guard('web')->logout();
+
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'role' => 'The selected role does not match your registered account.',
+    ]);
+}
+
         $request->session()->regenerate();
 
         // Redirect based on user role
