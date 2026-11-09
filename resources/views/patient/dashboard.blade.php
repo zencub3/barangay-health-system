@@ -219,47 +219,7 @@
                 @endif
             </div>
 
-            <!-- Consultation History & Prescriptions -->
-            <div class="patient-card">
-                <h3>Consultation History & Prescriptions</h3>
-                <p>
-                    Past medical advice, treatment instructions, and prescriptions
-                    will appear here after your health center visits.
-                </p>
-
-                @if($historyList->count() > 0)
-                    <div class="appointments-list">
-                        @foreach($historyList as $record)
-                            <div class="appointment-item">
-                                <h4>{{ $record->title ?? 'Consultation Record' }}</h4>
-
-                                <p>
-                                    Date:
-                                    {{ $record->date ?? 'No date available' }}
-                                </p>
-
-                                <p>
-                                    {{ $record->notes ?? 'No details available.' }}
-                                </p>
-
-                                @if(!empty($record->prescription))
-                                    <p style="margin-top:10px;">
-                                        <strong>Prescription:</strong>
-                                        {{ $record->prescription }}
-                                    </p>
-                                @endif
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="history-box">
-                        <p>
-                            No consultation history or prescriptions available yet.
-                        </p>
-                    </div>
-                @endif
-            </div>
-
-        </div>
+            
+        
     </div>
 </x-app-layout>
